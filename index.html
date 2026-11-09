@@ -40,8 +40,16 @@
             50% { transform: scale(1.2) rotate(180deg); opacity: 1; }
             100% { transform: scale(1) rotate(360deg); opacity: 1; }
         }
+        @keyframes shake-spin {
+            0% { transform: rotate(0deg) scale(1); }
+            25% { transform: rotate(15deg) scale(1.1); }
+            50% { transform: rotate(-15deg) scale(1.1); }
+            75% { transform: rotate(15deg) scale(1.1); }
+            100% { transform: rotate(0deg) scale(1); }
+        }
         .anim-bounce { animation: bounce 1s infinite; }
         .anim-spin-pop { animation: spin-pop 1s ease-out forwards; }
+        .anim-shake-spin { animation: shake-spin 0.2s infinite; }
         
         /* Mic pulsing */
         @keyframes pulse-red {
@@ -399,8 +407,11 @@
         function showGacha() {
             hideAllScreens();
             document.getElementById('screen-gacha').classList.remove('hidden');
+            
             document.getElementById('gacha-coins').innerText = state.coins;
             document.getElementById('gacha-machine').classList.remove('hidden');
+            document.getElementById('gacha-machine').classList.add('anim-bounce');
+            document.getElementById('gacha-machine').classList.remove('anim-shake-spin');
             document.getElementById('gacha-result').classList.add('hidden');
             
             const btn = document.getElementById('btn-pull-gacha');
@@ -415,28 +426,48 @@
 
         function pullGacha() {
             if (state.coins < 10) return;
+            
+            const btn = document.getElementById('btn-pull-gacha');
+            btn.disabled = true;
+            btn.className = "bg-gray-300 text-gray-500 font-bold py-3 px-8 rounded-full shadow-lg text-xl w-full mb-4 cursor-not-allowed";
+            
+            document.getElementById('gacha-result').classList.add('hidden');
+            
             state.coins -= 10;
             document.getElementById('gacha-coins').innerText = state.coins;
             
             const machine = document.getElementById('gacha-machine');
-            machine.classList.add('hidden');
+            machine.classList.remove('hidden');
+            machine.classList.remove('anim-bounce');
+            machine.classList.add('anim-shake-spin');
             
-            const resultDiv = document.getElementById('gacha-result');
-            const resultEmoji = document.getElementById('gacha-result-emoji');
-            const resultName = document.getElementById('gacha-result-name');
-            
-            // Random friend
-            const newFriend = allFriends[Math.floor(Math.random() * allFriends.length)];
-            state.friends.push(newFriend);
-            
-            resultEmoji.innerText = newFriend.emoji;
-            resultName.innerText = newFriend.name;
-            resultDiv.classList.remove('hidden');
-            resultEmoji.classList.remove('anim-spin-pop');
-            void resultEmoji.offsetWidth; // trigger reflow
-            resultEmoji.classList.add('anim-spin-pop');
-            
-            showGacha(); // refresh button state
+            // 演出時間として1.5秒待つ
+            setTimeout(() => {
+                machine.classList.remove('anim-shake-spin');
+                machine.classList.add('hidden');
+                
+                const resultDiv = document.getElementById('gacha-result');
+                const resultEmoji = document.getElementById('gacha-result-emoji');
+                const resultName = document.getElementById('gacha-result-name');
+                
+                // Random friend
+                const newFriend = allFriends[Math.floor(Math.random() * allFriends.length)];
+                state.friends.push(newFriend);
+                
+                resultEmoji.innerText = newFriend.emoji;
+                resultName.innerText = newFriend.name;
+                resultDiv.classList.remove('hidden');
+                
+                resultEmoji.classList.remove('anim-spin-pop');
+                void resultEmoji.offsetWidth; // trigger reflow
+                resultEmoji.classList.add('anim-spin-pop');
+                
+                // update button state for next pull
+                if (state.coins >= 10) {
+                    btn.disabled = false;
+                    btn.className = "bg-yellow-400 text-white font-bold py-3 px-8 rounded-full shadow-lg text-xl w-full mb-4 hover:bg-yellow-500 transition";
+                }
+            }, 1500);
         }
 
         // --- 3D Game Logic (Three.js) ---
