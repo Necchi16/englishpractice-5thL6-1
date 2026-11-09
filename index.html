@@ -60,9 +60,9 @@
         
         <div class="bg-white p-4 rounded-xl shadow-md w-full text-center">
             <p class="text-xl mb-2">コイン: <span id="menu-coins" class="font-bold text-yellow-500 text-2xl">0</span> 枚</p>
-            <p class="text-lg">イッヌーニ 第 <span id="menu-gen" class="font-bold text-blue-500">1</span> 世代</p>
+            <p class="text-lg">第 <span id="menu-gen" class="font-bold text-blue-500">1</span> 世代: <span id="menu-name" class="font-bold text-green-600">タマゴニ</span></p>
             <p class="text-md text-gray-500">進化レベル: <span id="menu-stage" class="font-bold">1</span> / 20</p>
-            <div class="text-5xl mt-2 mb-2" id="menu-current-emoji">🐶</div>
+            <div class="text-5xl mt-2 mb-2" id="menu-current-emoji">🥚</div>
         </div>
 
         <button onclick="startLearning()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-full shadow-lg text-xl transition transform hover:scale-105">
@@ -135,11 +135,14 @@
                 <h2 class="text-2xl font-bold text-green-500 mb-4">ゲーム終了！</h2>
                 <p class="mb-4">あつめたコイン: <span id="result-coins" class="font-bold text-yellow-500 text-xl"></span></p>
                 <hr class="my-4">
-                <h3 class="text-xl font-bold mb-2">イッヌーニが進化！</h3>
+                <h3 class="text-xl font-bold mb-2"><span id="evo-before-name"></span>が進化！</h3>
                 <div class="flex justify-center items-center gap-4 text-5xl my-4">
                     <span id="evo-before">🐶</span>
                     <span class="text-2xl">➡</span>
-                    <span id="evo-after" class="anim-spin-pop">🐕</span>
+                    <div class="flex flex-col items-center">
+                        <span id="evo-after" class="anim-spin-pop">🐕</span>
+                        <span id="evo-after-name" class="text-lg font-bold mt-2 text-green-600"></span>
+                    </div>
                 </div>
                 <p id="evo-text" class="text-sm text-gray-600 mb-6">レベルアップ！</p>
                 <button onclick="finishGame()" class="bg-blue-500 text-white font-bold py-3 px-8 rounded-full shadow w-full">メニューにもどる</button>
@@ -156,6 +159,7 @@
             <div id="gacha-machine" class="text-8xl my-8 anim-bounce">🎰</div>
             <div id="gacha-result" class="hidden flex flex-col items-center">
                 <div id="gacha-result-emoji" class="text-8xl my-4"></div>
+                <p id="gacha-result-name" class="font-bold text-2xl mb-2 text-orange-500"></p>
                 <p class="font-bold text-lg text-blue-500">新しい友達をゲット！</p>
                 <p class="text-sm text-gray-500">ゲームで敵を倒すのを手伝ってくれるよ</p>
             </div>
@@ -171,7 +175,7 @@
     <div id="screen-status" class="hidden w-full max-w-md p-6 flex flex-col items-center h-full overflow-y-auto">
         <h2 class="text-2xl font-bold mb-4">あつめた友達</h2>
         <div class="bg-white rounded-2xl shadow w-full p-4 mb-4">
-            <div id="friends-list" class="flex flex-wrap gap-2 justify-center text-3xl">
+            <div id="friends-list" class="flex flex-wrap gap-3 justify-center text-3xl">
                 <!-- Friends injected here -->
             </div>
             <p id="no-friends-msg" class="text-center text-gray-500">まだ友達がいないよ。ガチャを回そう！</p>
@@ -196,20 +200,36 @@
         ];
 
         const evolutionStages = [
-            "🥚", "🐣", "🐥", "🐶", "🐕", "🦮", "🐩", "🐕‍🦺", "🐾", "🦴",
-            "🍖", "🌭", "🦊", "🐺", "🦁", "🐯", "🐆", "🐅", "🐉", "🐲"
+            { emoji: "🥚", name: "タマゴニ" }, { emoji: "🐣", name: "カラツキニ" },
+            { emoji: "🐥", name: "ピヨニ" }, { emoji: "🐶", name: "イッヌーニ" },
+            { emoji: "🐕", name: "シバイッヌーニ" }, { emoji: "🦮", name: "ガイドニ" },
+            { emoji: "🐩", name: "プードニ" }, { emoji: "🐕‍🦺", name: "レスキューニ" },
+            { emoji: "🐾", name: "アシガタニ" }, { emoji: "🦴", name: "ホネニ" },
+            { emoji: "🍖", name: "ニクニ" }, { emoji: "🌭", name: "ホットドッグニ" },
+            { emoji: "🦊", name: "キツネニ" }, { emoji: "🐺", name: "オオカミニ" },
+            { emoji: "🦁", name: "ライオニ" }, { emoji: "🐯", name: "トラニ" },
+            { emoji: "🐆", name: "ヒョウニ" }, { emoji: "🐅", name: "タイガーニ" },
+            { emoji: "🐉", name: "ドラゴニ" }, { emoji: "🐲", name: "エンペラーニ" }
         ];
 
         const allFriends = [
-            "🐱", "🐭", "🐹", "🐰", "🐻", "🐼", "🐻‍❄️", "🐨", "🐮", "🐷",
-            "🐸", "🐵", "🐔", "🐧", "🐦", "🦆", "🦉", "🦇", "🐝", "🦋"
+            { emoji: "🐱", name: "ネコチ" }, { emoji: "🐭", name: "ネズッチ" },
+            { emoji: "🐹", name: "ハムチ" }, { emoji: "🐰", name: "ウサチ" },
+            { emoji: "🐻", name: "クマチ" }, { emoji: "🐼", name: "パンチ" },
+            { emoji: "🐻‍❄️", name: "シロクマチ" }, { emoji: "🐨", name: "コアチ" },
+            { emoji: "🐮", name: "ウシチ" }, { emoji: "🐷", name: "ブタチ" },
+            { emoji: "🐸", name: "カエチ" }, { emoji: "🐵", name: "サルチ" },
+            { emoji: "🐔", name: "ニワチ" }, { emoji: "🐧", name: "ペンチ" },
+            { emoji: "🐦", name: "トリチ" }, { emoji: "🦆", name: "カモチ" },
+            { emoji: "🦉", name: "フクロチ" }, { emoji: "🦇", name: "コウモツ" },
+            { emoji: "🐝", name: "ハチチ" }, { emoji: "🦋", name: "チョウチ" }
         ];
 
         let state = {
             coins: 0,
             generation: 1,
             evoStage: 1, // 1 to 20
-            friends: [], // array of emojis
+            friends: [], // array of objects {emoji, name}
             helpers: 0 // number of past final forms
         };
 
@@ -237,7 +257,9 @@
             document.getElementById('menu-coins').innerText = state.coins;
             document.getElementById('menu-gen').innerText = state.generation;
             document.getElementById('menu-stage').innerText = state.evoStage;
-            document.getElementById('menu-current-emoji').innerText = evolutionStages[state.evoStage - 1];
+            const currentEvolution = evolutionStages[state.evoStage - 1];
+            document.getElementById('menu-name').innerText = currentEvolution.name;
+            document.getElementById('menu-current-emoji').innerText = currentEvolution.emoji;
             stopMic();
         }
 
@@ -250,10 +272,18 @@
             if (state.friends.length > 0) {
                 msg.classList.add('hidden');
                 state.friends.forEach(f => {
-                    const span = document.createElement('span');
-                    span.innerText = f;
-                    span.className = "bg-gray-100 p-2 rounded-lg";
-                    list.appendChild(span);
+                    const div = document.createElement('div');
+                    div.className = "bg-gray-100 p-2 rounded-lg flex flex-col items-center justify-center w-20";
+                    const spanE = document.createElement('span');
+                    spanE.innerText = f.emoji;
+                    spanE.className = "text-4xl";
+                    const spanN = document.createElement('span');
+                    spanN.innerText = f.name;
+                    spanN.className = "text-xs font-bold mt-1 text-gray-700 whitespace-nowrap";
+                    
+                    div.appendChild(spanE);
+                    div.appendChild(spanN);
+                    list.appendChild(div);
                 });
             } else {
                 msg.classList.remove('hidden');
@@ -393,12 +423,14 @@
             
             const resultDiv = document.getElementById('gacha-result');
             const resultEmoji = document.getElementById('gacha-result-emoji');
+            const resultName = document.getElementById('gacha-result-name');
             
             // Random friend
             const newFriend = allFriends[Math.floor(Math.random() * allFriends.length)];
             state.friends.push(newFriend);
             
-            resultEmoji.innerText = newFriend;
+            resultEmoji.innerText = newFriend.emoji;
+            resultName.innerText = newFriend.name;
             resultDiv.classList.remove('hidden');
             resultEmoji.classList.remove('anim-spin-pop');
             void resultEmoji.offsetWidth; // trigger reflow
@@ -500,8 +532,8 @@
             document.getElementById('game-coins').innerText = collectedCoins;
 
             // Player
-            const currentEmoji = evolutionStages[state.evoStage - 1];
-            player = createSprite(currentEmoji, 1.5);
+            const currentEvolution = evolutionStages[state.evoStage - 1];
+            player = createSprite(currentEvolution.emoji, 1.5);
             player.position.set(0, 0.5, 0);
             scene.add(player);
 
@@ -521,8 +553,8 @@
             }
 
             // Friends
-            state.friends.forEach(fEmoji => {
-                let f = createSprite(fEmoji, 1.0);
+            state.friends.forEach(friendData => {
+                let f = createSprite(friendData.emoji, 1.0);
                 f.position.set((Math.random()-0.5)*15, 0.5, (Math.random()-0.5)*15);
                 scene.add(f);
                 friends.push(f);
@@ -530,7 +562,7 @@
 
             // Helpers (Past final forms)
             for(let i=0; i<state.helpers; i++) {
-                let h = createSprite(evolutionStages[19], 1.5); // Final form
+                let h = createSprite(evolutionStages[19].emoji, 1.5); // Final form
                 h.position.set((Math.random()-0.5)*15, 0.5, (Math.random()-0.5)*15);
                 scene.add(h);
                 friends.push(h); // Act like friends
@@ -645,8 +677,7 @@
             state.coins += collectedCoins;
             
             // Evolution Logic
-            const oldEmoji = evolutionStages[state.evoStage - 1];
-            let newEmoji = oldEmoji;
+            const oldEvolution = evolutionStages[state.evoStage - 1];
             let evoText = "レベルアップ！";
 
             state.evoStage++;
@@ -656,12 +687,14 @@
                 state.helpers++;
                 evoText = "最終形態到達！\n新しい世代の子どもが生まれたよ！";
             }
-            newEmoji = evolutionStages[state.evoStage - 1];
+            const newEvolution = evolutionStages[state.evoStage - 1];
 
             // Show Popup
             document.getElementById('result-coins').innerText = collectedCoins;
-            document.getElementById('evo-before').innerText = oldEmoji;
-            document.getElementById('evo-after').innerText = newEmoji;
+            document.getElementById('evo-before').innerText = oldEvolution.emoji;
+            document.getElementById('evo-before-name').innerText = oldEvolution.name;
+            document.getElementById('evo-after').innerText = newEvolution.emoji;
+            document.getElementById('evo-after-name').innerText = newEvolution.name;
             document.getElementById('evo-text').innerText = evoText;
             
             // Reset animation
