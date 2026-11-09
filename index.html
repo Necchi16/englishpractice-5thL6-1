@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>英語学習＆イッヌーニの冒険</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700&display=swap');
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #f0fdf4;
+            user-select: none;
+            overflow: hidden; /* Prevent scrolling */
+        }
+        .hidden { display: none !important; }
+        
+        /* 3D Game Canvas */
+        #game-container {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 10;
+        }
+        #game-ui-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 20;
+            pointer-events: none;
+        }
+        .pointer-events-auto { pointer-events: auto; }
+        
+        /* Gacha Animation */
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        @keyframes spin-pop {
+            0% { transform: scale(0.1) rotate(0deg); opacity: 0; }
+            50% { transform: scale(1.2) rotate(180deg); opacity: 1; }
+            100% { transform: scale(1) rotate(360deg); opacity: 1; }
+        }
+        .anim-bounce { animation: bounce 1s infinite; }
+        .anim-spin-pop { animation: spin-pop 1s ease-out forwards; }
+        
+        /* Mic pulsing */
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .mic-active { animation: pulse-red 1.5s infinite; background-color: #ef4444 !important; color: white !important; }
+    </style>
+</head>
+<body class="w-screen h-screen flex flex-col items-center justify-center text-gray-800">
+
+    <!-- Screen: Main Menu -->
+    <div id="screen-menu" class="w-full max-w-md p-6 flex flex-col gap-4 items-center">
+        <h1 class="text-3xl font-bold text-green-600 mb-4 text-center">英語学習<br>＆イッヌーニの冒険</h1>
+        
+        <div class="bg-white p-4 rounded-xl shadow-md w-full text-center">
+            <p class="text-xl mb-2">コイン: <span id="menu-coins" class="font-bold text-yellow-500 text-2xl">0</span> 枚</p>
+            <p class="text-lg">イッヌーニ 第 <span id="menu-gen" class="font-bold text-blue-500">1</span> 世代</p>
+            <p class="text-md text-gray-500">進化レベル: <span id="menu-stage" class="font-bold">1</span> / 20</p>
+            <div class="text-5xl mt-2 mb-2" id="menu-current-emoji">🐶</div>
+        </div>
+
+        <button onclick="startLearning()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-full shadow-lg text-xl transition transform hover:scale-105">
+            学習スタート！
+        </button>
+        <button onclick="showGacha()" class="w-full bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-4 px-6 rounded-full shadow-lg text-xl transition transform hover:scale-105">
+            ガチャを回す (10コイン)
+        </button>
+        <button onclick="showStatus()" class="w-full bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-full shadow-lg text-lg transition transform hover:scale-105">
+            あつめた友達を見る
+        </button>
+    </div>
+
+    <!-- Screen: Learning -->
+    <div id="screen-learning" class="hidden w-full max-w-md p-6 flex flex-col items-center justify-center h-full">
+        <div class="w-full flex justify-between mb-4">
+            <span class="text-gray-500 font-bold" onclick="showMenu()">← もどる</span>
+            <span class="text-green-600 font-bold">正解: <span id="learn-streak">0</span> / 5</span>
+        </div>
+        
+        <div class="bg-white rounded-2xl shadow-xl w-full p-8 text-center flex flex-col items-center">
+            <p class="text-sm text-gray-400 mb-2">この言葉を英語で言ってね</p>
+            <h2 id="learn-word-ja" class="text-4xl font-bold text-gray-800 mb-8">フライドチキン</h2>
+            
+            <button id="btn-mic" onclick="toggleMic()" class="bg-gray-200 text-gray-700 w-24 h-24 rounded-full flex items-center justify-center text-4xl shadow-md transition">
+                🎤
+            </button>
+            <p id="learn-status" class="mt-4 h-6 text-gray-600 font-bold">マイクボタンを押して話してね</p>
+            
+            <div class="mt-6 h-12">
+                <button id="btn-skip" onclick="skipQuestion()" class="hidden bg-gray-400 text-white px-6 py-2 rounded-full font-bold shadow">
+                    スキップして次へ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen: 3D Game -->
+    <div id="screen-game" class="hidden w-full h-full relative">
+        <div id="game-container"></div>
+        <div id="game-ui-overlay" class="p-4 flex flex-col justify-between">
+            <div class="flex justify-between items-start">
+                <div class="bg-white/80 p-2 rounded-lg shadow font-bold text-xl pointer-events-auto">
+                    ⏱ <span id="game-time">15</span>
+                </div>
+                <div class="bg-white/80 p-2 rounded-lg shadow font-bold text-xl text-yellow-500 pointer-events-auto">
+                    🪙 <span id="game-coins">0</span>
+                </div>
+            </div>
+            
+            <!-- Mobile Controls -->
+            <div class="pointer-events-auto flex justify-center mb-8 gap-4 opacity-70">
+                <div class="grid grid-cols-3 gap-2">
+                    <div></div>
+                    <button class="bg-white/80 w-16 h-16 rounded-full shadow font-bold text-2xl" onpointerdown="moveInput.y=-1" onpointerup="moveInput.y=0" onpointerleave="moveInput.y=0">↑</button>
+                    <div></div>
+                    <button class="bg-white/80 w-16 h-16 rounded-full shadow font-bold text-2xl" onpointerdown="moveInput.x=-1" onpointerup="moveInput.x=0" onpointerleave="moveInput.x=0">←</button>
+                    <button class="bg-white/80 w-16 h-16 rounded-full shadow font-bold text-2xl" onpointerdown="moveInput.y=1" onpointerup="moveInput.y=0" onpointerleave="moveInput.y=0">↓</button>
+                    <button class="bg-white/80 w-16 h-16 rounded-full shadow font-bold text-2xl" onpointerdown="moveInput.x=1" onpointerup="moveInput.x=0" onpointerleave="moveInput.x=0">→</button>
+                </div>
+            </div>
+        </div>
+        <!-- Evolution Popup -->
+        <div id="game-evolution-popup" class="hidden absolute top-0 left-0 w-full h-full bg-black/70 z-50 flex items-center justify-center">
+            <div class="bg-white p-8 rounded-2xl text-center max-w-sm w-full mx-4">
+                <h2 class="text-2xl font-bold text-green-500 mb-4">ゲーム終了！</h2>
+                <p class="mb-4">あつめたコイン: <span id="result-coins" class="font-bold text-yellow-500 text-xl"></span></p>
+                <hr class="my-4">
+                <h3 class="text-xl font-bold mb-2">イッヌーニが進化！</h3>
+                <div class="flex justify-center items-center gap-4 text-5xl my-4">
+                    <span id="evo-before">🐶</span>
+                    <span class="text-2xl">➡</span>
+                    <span id="evo-after" class="anim-spin-pop">🐕</span>
+                </div>
+                <p id="evo-text" class="text-sm text-gray-600 mb-6">レベルアップ！</p>
+                <button onclick="finishGame()" class="bg-blue-500 text-white font-bold py-3 px-8 rounded-full shadow w-full">メニューにもどる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen: Gacha -->
+    <div id="screen-gacha" class="hidden w-full max-w-md p-6 flex flex-col items-center justify-center h-full">
+        <div class="bg-white rounded-2xl shadow-xl w-full p-8 text-center flex flex-col items-center">
+            <h2 class="text-2xl font-bold mb-4">友達ガチャ</h2>
+            <p class="mb-4">10コインで1回まわせるよ！<br>現在のコイン: <span id="gacha-coins" class="text-yellow-500 font-bold"></span></p>
+            
+            <div id="gacha-machine" class="text-8xl my-8 anim-bounce">🎰</div>
+            <div id="gacha-result" class="hidden flex flex-col items-center">
+                <div id="gacha-result-emoji" class="text-8xl my-4"></div>
+                <p class="font-bold text-lg text-blue-500">新しい友達をゲット！</p>
+                <p class="text-sm text-gray-500">ゲームで敵を倒すのを手伝ってくれるよ</p>
+            </div>
+
+            <button id="btn-pull-gacha" onclick="pullGacha()" class="bg-yellow-400 text-white font-bold py-3 px-8 rounded-full shadow-lg text-xl w-full mb-4">
+                回す！
+            </button>
+            <button onclick="showMenu()" class="text-gray-500 font-bold py-2">もどる</button>
+        </div>
+    </div>
+
+    <!-- Screen: Status -->
+    <div id="screen-status" class="hidden w-full max-w-md p-6 flex flex-col items-center h-full overflow-y-auto">
+        <h2 class="text-2xl font-bold mb-4">あつめた友達</h2>
+        <div class="bg-white rounded-2xl shadow w-full p-4 mb-4">
+            <div id="friends-list" class="flex flex-wrap gap-2 justify-center text-3xl">
+                <!-- Friends injected here -->
+            </div>
+            <p id="no-friends-msg" class="text-center text-gray-500">まだ友達がいないよ。ガチャを回そう！</p>
+        </div>
+        <button onclick="showMenu()" class="bg-gray-200 text-gray-700 font-bold py-3 px-8 rounded-full shadow w-full">もどる</button>
+    </div>
+
+    <script>
+        // --- Data & State ---
+        const vocabList = [
+            { ja: "フライドチキン", en: "fried chicken" }, { ja: "フライドポテト", en: "french fries" },
+            { ja: "オムレツ", en: "omelet" }, { ja: "ステーキ", en: "steak" },
+            { ja: "ハンバーガー", en: "hamburger" }, { ja: "ホットドッグ", en: "hot dog" },
+            { ja: "ピザ", en: "pizza" }, { ja: "サンドイッチ", en: "sandwich" },
+            { ja: "スパゲッティ", en: "spaghetti" }, { ja: "サラダ", en: "salad" },
+            { ja: "スープ", en: "soup" }, { ja: "ジャム", en: "jam" },
+            { ja: "パン", en: "bread" }, { ja: "おにぎり", en: "rice ball" },
+            { ja: "水", en: "water" }, { ja: "牛乳", en: "milk" },
+            { ja: "お茶", en: "tea" }, { ja: "コーヒー", en: "coffee" },
+            { ja: "ジュース", en: "juice" }, { ja: "ケーキ", en: "cake" },
+            { ja: "アイスクリーム", en: "ice cream" }, { ja: "ドーナツ", en: "donut" }
+        ];
+
+        const evolutionStages = [
+            "🥚", "🐣", "🐥", "🐶", "🐕", "🦮", "🐩", "🐕‍🦺", "🐾", "🦴",
+            "🍖", "🌭", "🦊", "🐺", "🦁", "🐯", "🐆", "🐅", "🐉", "🐲"
+        ];
+
+        const allFriends = [
+            "🐱", "🐭", "🐹", "🐰", "🐻", "🐼", "🐻‍❄️", "🐨", "🐮", "🐷",
+            "🐸", "🐵", "🐔", "🐧", "🐦", "🦆", "🦉", "🦇", "🐝", "🦋"
+        ];
+
+        let state = {
+            coins: 0,
+            generation: 1,
+            evoStage: 1, // 1 to 20
+            friends: [], // array of emojis
+            helpers: 0 // number of past final forms
+        };
+
+        let currentQuestion = null;
+        let mistakes = 0;
+        let correctStreak = 0;
+
+        // --- Screen Management ---
+        function hideAllScreens() {
+            document.querySelectorAll('div[id^="screen-"]').forEach(el => el.classList.add('hidden'));
+        }
+
+        function showMenu() {
+            hideAllScreens();
+            document.getElementById('screen-menu').classList.remove('hidden');
+            document.getElementById('menu-coins').innerText = state.coins;
+            document.getElementById('menu-gen').innerText = state.generation;
+            document.getElementById('menu-stage').innerText = state.evoStage;
+            document.getElementById('menu-current-emoji').innerText = evolutionStages[state.evoStage - 1];
+            stopMic();
+        }
+
+        function showStatus() {
+            hideAllScreens();
+            document.getElementById('screen-status').classList.remove('hidden');
+            const list = document.getElementById('friends-list');
+            const msg = document.getElementById('no-friends-msg');
+            list.innerHTML = '';
+            if (state.friends.length > 0) {
+                msg.classList.add('hidden');
+                state.friends.forEach(f => {
+                    const span = document.createElement('span');
+                    span.innerText = f;
+                    span.className = "bg-gray-100 p-2 rounded-lg";
+                    list.appendChild(span);
+                });
+            } else {
+                msg.classList.remove('hidden');
+            }
+        }
+
+        // --- Learning Logic (Speech Recognition) ---
+        let recognition = null;
+        let isRecording = false;
+
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRec();
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript.toLowerCase().replace(/[.,!?]/g, '').trim();
+                checkAnswer(transcript);
+                stopMic();
+            };
+            
+            recognition.onerror = (event) => {
+                document.getElementById('learn-status').innerText = "エラー: " + event.error;
+                stopMic();
+            };
+            
+            recognition.onend = () => {
+                stopMic();
+            };
+        } else {
+            alert("お使いのブラウザは音声認識に対応していません。Chromeを使用してください。");
+        }
+
+        function startLearning() {
+            hideAllScreens();
+            document.getElementById('screen-learning').classList.remove('hidden');
+            correctStreak = 0;
+            updateLearningUI();
+            nextQuestion();
+        }
+
+        function nextQuestion() {
+            mistakes = 0;
+            currentQuestion = vocabList[Math.floor(Math.random() * vocabList.length)];
+            document.getElementById('learn-word-ja').innerText = currentQuestion.ja;
+            document.getElementById('btn-skip').classList.add('hidden');
+            document.getElementById('learn-status').innerText = "マイクボタンを押して話してね";
+            document.getElementById('learn-status').className = "mt-4 h-6 text-gray-600 font-bold";
+        }
+
+        function toggleMic() {
+            if (!recognition) return;
+            if (isRecording) {
+                stopMic();
+            } else {
+                try {
+                    recognition.start();
+                    isRecording = true;
+                    document.getElementById('btn-mic').classList.add('mic-active');
+                    document.getElementById('learn-status').innerText = "きいています...";
+                    document.getElementById('learn-status').className = "mt-4 h-6 text-blue-500 font-bold";
+                } catch(e) {}
+            }
+        }
+
+        function stopMic() {
+            if(recognition && isRecording) {
+                recognition.stop();
+            }
+            isRecording = false;
+            document.getElementById('btn-mic').classList.remove('mic-active');
+        }
+
+        function checkAnswer(spokenWord) {
+            const targetWord = currentQuestion.en.toLowerCase();
+            if (spokenWord.includes(targetWord) || targetWord.includes(spokenWord)) {
+                // Correct
+                document.getElementById('learn-status').innerText = "せいかい！ ( " + spokenWord + " )";
+                document.getElementById('learn-status').className = "mt-4 h-6 text-green-500 font-bold text-xl";
+                correctStreak++;
+                updateLearningUI();
+                
+                setTimeout(() => {
+                    if (correctStreak >= 5) {
+                        startGame();
+                    } else {
+                        nextQuestion();
+                    }
+                }, 1500);
+            } else {
+                // Wrong
+                mistakes++;
+                document.getElementById('learn-status').innerText = "ざんねん！ちがうよ ( " + spokenWord + " )";
+                document.getElementById('learn-status').className = "mt-4 h-6 text-red-500 font-bold";
+                
+                if (mistakes >= 3) {
+                    document.getElementById('btn-skip').classList.remove('hidden');
+                }
+            }
+        }
+
+        function skipQuestion() {
+            nextQuestion();
+        }
+
+        function updateLearningUI() {
+            document.getElementById('learn-streak').innerText = correctStreak;
+        }
+
+        // --- Gacha Logic ---
+        function showGacha() {
+            hideAllScreens();
+            document.getElementById('screen-gacha').classList.remove('hidden');
+            document.getElementById('gacha-coins').innerText = state.coins;
+            document.getElementById('gacha-machine').classList.remove('hidden');
+            document.getElementById('gacha-result').classList.add('hidden');
+            
+            const btn = document.getElementById('btn-pull-gacha');
+            if (state.coins >= 10) {
+                btn.disabled = false;
+                btn.className = "bg-yellow-400 text-white font-bold py-3 px-8 rounded-full shadow-lg text-xl w-full mb-4 hover:bg-yellow-500 transition";
+            } else {
+                btn.disabled = true;
+                btn.className = "bg-gray-300 text-gray-500 font-bold py-3 px-8 rounded-full shadow-lg text-xl w-full mb-4 cursor-not-allowed";
+            }
+        }
+
+        function pullGacha() {
+            if (state.coins < 10) return;
+            state.coins -= 10;
+            document.getElementById('gacha-coins').innerText = state.coins;
+            
+            const machine = document.getElementById('gacha-machine');
+            machine.classList.add('hidden');
+            
+            const resultDiv = document.getElementById('gacha-result');
+            const resultEmoji = document.getElementById('gacha-result-emoji');
+            
+            // Random friend
+            const newFriend = allFriends[Math.floor(Math.random() * allFriends.length)];
+            state.friends.push(newFriend);
+            
+            resultEmoji.innerText = newFriend;
+            resultDiv.classList.remove('hidden');
+            resultEmoji.classList.remove('anim-spin-pop');
+            void resultEmoji.offsetWidth; // trigger reflow
+            resultEmoji.classList.add('anim-spin-pop');
+            
+            showGacha(); // refresh button state
+        }
+
+        // --- 3D Game Logic (Three.js) ---
+        let scene, camera, renderer, gameLoopId;
+        let player, enemies = [], coins = [], friends = [];
+        let gameTime = 15;
+        let collectedCoins = 0;
+        let isStunned = false;
+        let stunTimer = 0;
+        let lastTime = 0;
+        let moveInput = {x: 0, y: 0};
+        
+        // Keyboard input
+        window.addEventListener('keydown', (e) => {
+            if(e.key === 'ArrowUp' || e.key === 'w') moveInput.y = -1;
+            if(e.key === 'ArrowDown' || e.key === 's') moveInput.y = 1;
+            if(e.key === 'ArrowLeft' || e.key === 'a') moveInput.x = -1;
+            if(e.key === 'ArrowRight' || e.key === 'd') moveInput.x = 1;
+        });
+        window.addEventListener('keyup', (e) => {
+            if(e.key === 'ArrowUp' || e.key === 'w' || e.key === 'ArrowDown' || e.key === 's') moveInput.y = 0;
+            if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'ArrowRight' || e.key === 'd') moveInput.x = 0;
+        });
+
+        function getEmojiTexture(emoji, size=128) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.font = `${size*0.75}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(emoji, size/2, size/2 + size*0.1);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createSprite(emoji, scale=1) {
+            const map = getEmojiTexture(emoji);
+            const material = new THREE.SpriteMaterial({ map: map, transparent: true });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(scale, scale, 1);
+            return sprite;
+        }
+
+        function initThreeJS() {
+            const container = document.getElementById('game-container');
+            container.innerHTML = '';
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); // Sky blue
+            
+            // Floor (Simple Grid)
+            const gridHelper = new THREE.GridHelper(20, 20, 0xffffff, 0xffffff);
+            gridHelper.position.y = -0.5;
+            gridHelper.material.opacity = 0.5;
+            gridHelper.material.transparent = true;
+            scene.add(gridHelper);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 8, 10);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            // Resize handler
+            window.addEventListener('resize', () => {
+                if(!camera || !renderer) return;
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        function startGame() {
+            hideAllScreens();
+            document.getElementById('screen-game').classList.remove('hidden');
+            document.getElementById('game-evolution-popup').classList.add('hidden');
+            
+            initThreeJS();
+            
+            // Reset Game State
+            gameTime = 15;
+            collectedCoins = 0;
+            isStunned = false;
+            stunTimer = 0;
+            moveInput = {x: 0, y: 0};
+            enemies = [];
+            coins = [];
+            friends = [];
+            document.getElementById('game-time').innerText = gameTime;
+            document.getElementById('game-coins').innerText = collectedCoins;
+
+            // Player
+            const currentEmoji = evolutionStages[state.evoStage - 1];
+            player = createSprite(currentEmoji, 1.5);
+            player.position.set(0, 0.5, 0);
+            scene.add(player);
+
+            // Coins
+            for(let i=0; i<5; i++) {
+                spawnCoin();
+            }
+
+            // Enemies (Aliens/Monsters)
+            const enemyEmojis = ["👾", "👽", "👻", "👹", "👺"];
+            for(let i=0; i<4; i++) {
+                let e = createSprite(enemyEmojis[Math.floor(Math.random()*enemyEmojis.length)], 1.2);
+                e.position.set((Math.random()-0.5)*15, 0.5, (Math.random()-0.5)*15);
+                e.userData = { speed: 2 + Math.random()*2, dir: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize() };
+                scene.add(e);
+                enemies.push(e);
+            }
+
+            // Friends
+            state.friends.forEach(fEmoji => {
+                let f = createSprite(fEmoji, 1.0);
+                f.position.set((Math.random()-0.5)*15, 0.5, (Math.random()-0.5)*15);
+                scene.add(f);
+                friends.push(f);
+            });
+
+            // Helpers (Past final forms)
+            for(let i=0; i<state.helpers; i++) {
+                let h = createSprite(evolutionStages[19], 1.5); // Final form
+                h.position.set((Math.random()-0.5)*15, 0.5, (Math.random()-0.5)*15);
+                scene.add(h);
+                friends.push(h); // Act like friends
+            }
+
+            lastTime = performance.now();
+            requestAnimationFrame(animateGame);
+            
+            // Timer logic
+            const timerInterval = setInterval(() => {
+                gameTime--;
+                document.getElementById('game-time').innerText = gameTime;
+                if(gameTime <= 0) {
+                    clearInterval(timerInterval);
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        function spawnCoin() {
+            let c = createSprite("🪙", 1.0);
+            c.position.set((Math.random()-0.5)*18, 0.5, (Math.random()-0.5)*18);
+            scene.add(c);
+            coins.push(c);
+        }
+
+        function animateGame(time) {
+            if(gameTime <= 0) return; // Stop loop
+            gameLoopId = requestAnimationFrame(animateGame);
+            
+            const dt = (time - lastTime) / 1000;
+            lastTime = time;
+
+            // Player Movement
+            if (isStunned) {
+                stunTimer -= dt;
+                player.material.opacity = Math.abs(Math.sin(time / 100)); // Blink
+                if (stunTimer <= 0) {
+                    isStunned = false;
+                    player.material.opacity = 1;
+                }
+            } else {
+                const speed = 7;
+                player.position.x += moveInput.x * speed * dt;
+                player.position.z += moveInput.y * speed * dt;
+                
+                // Bounds
+                player.position.x = Math.max(-10, Math.min(10, player.position.x));
+                player.position.z = Math.max(-10, Math.min(10, player.position.z));
+            }
+
+            // Camera follow
+            camera.position.x = player.position.x;
+            camera.position.z = player.position.z + 10;
+            camera.lookAt(player.position);
+
+            // Enemies logic
+            enemies.forEach(e => {
+                e.position.addScaledVector(e.userData.dir, e.userData.speed * dt);
+                // Bounce off walls
+                if(e.position.x < -10 || e.position.x > 10) e.userData.dir.x *= -1;
+                if(e.position.z < -10 || e.position.z > 10) e.userData.dir.z *= -1;
+
+                // Collide with player
+                if (!isStunned && player.position.distanceTo(e.position) < 1.0) {
+                    isStunned = true;
+                    stunTimer = 2.0; // Stun for 2 seconds
+                }
+            });
+
+            // Friends logic (Chase enemies)
+            friends.forEach(f => {
+                let nearestEnemy = null;
+                let minDist = 100;
+                enemies.forEach(e => {
+                    let d = f.position.distanceTo(e.position);
+                    if(d < minDist) { minDist = d; nearestEnemy = e; }
+                });
+
+                if(nearestEnemy) {
+                    let dir = new THREE.Vector3().subVectors(nearestEnemy.position, f.position).normalize();
+                    f.position.addScaledVector(dir, 4 * dt); // Friend speed
+
+                    // Collide with enemy (Defeat enemy)
+                    if(f.position.distanceTo(nearestEnemy.position) < 1.0) {
+                        // Relocate enemy randomly
+                        nearestEnemy.position.set((Math.random()-0.5)*18, 0.5, (Math.random()-0.5)*18);
+                        // Relocate friend slightly to avoid immediate re-collision
+                        f.position.set((Math.random()-0.5)*15, 0.5, (Math.random()-0.5)*15);
+                    }
+                }
+            });
+
+            // Coin collision
+            for(let i=coins.length-1; i>=0; i--) {
+                let c = coins[i];
+                if(player.position.distanceTo(c.position) < 1.2) {
+                    scene.remove(c);
+                    coins.splice(i, 1);
+                    collectedCoins++;
+                    document.getElementById('game-coins').innerText = collectedCoins;
+                    spawnCoin(); // Spawn new coin
+                }
+                c.position.y = 0.5 + Math.sin(time/200)*0.2; // Hover effect
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function endGame() {
+            cancelAnimationFrame(gameLoopId);
+            state.coins += collectedCoins;
+            
+            // Evolution Logic
+            const oldEmoji = evolutionStages[state.evoStage - 1];
+            let newEmoji = oldEmoji;
+            let evoText = "レベルアップ！";
+
+            state.evoStage++;
+            if (state.evoStage > 20) {
+                state.evoStage = 1;
+                state.generation++;
+                state.helpers++;
+                evoText = "最終形態到達！\n新しい世代の子どもが生まれたよ！";
+            }
+            newEmoji = evolutionStages[state.evoStage - 1];
+
+            // Show Popup
+            document.getElementById('result-coins').innerText = collectedCoins;
+            document.getElementById('evo-before').innerText = oldEmoji;
+            document.getElementById('evo-after').innerText = newEmoji;
+            document.getElementById('evo-text').innerText = evoText;
+            
+            // Reset animation
+            const elAfter = document.getElementById('evo-after');
+            elAfter.classList.remove('anim-spin-pop');
+            void elAfter.offsetWidth;
+            elAfter.classList.add('anim-spin-pop');
+
+            document.getElementById('game-evolution-popup').classList.remove('hidden');
+        }
+
+        function finishGame() {
+            // Clean up Three.js
+            const container = document.getElementById('game-container');
+            container.innerHTML = '';
+            scene = null; camera = null; renderer = null;
+            showMenu();
+        }
+
+        // Init
+        showMenu();
+
+    </script>
+</body>
+</html>
